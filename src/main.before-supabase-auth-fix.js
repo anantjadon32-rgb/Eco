@@ -404,18 +404,15 @@ function openEcoAuth(mode = "login") {
   requestAnimationFrame(() => overlay.classList.add("open"));
 }
 
-async function renderEcoAuth(mode) {
+function renderEcoAuth(mode) {
   const overlay = document.querySelector("#eco-auth-overlay");
   const content = document.querySelector("#eco-auth-content");
 
   if (!overlay || !content) return;
 
-  const loggedIn = await isLoggedIn();
-  const user = await getUser();
-
-  if (loggedIn && user) {
-    const projects = await getUserProjects(user.id);
-    const projectCount = projects.length;
+  if (isLoggedIn() && getUser()) {
+    const user = getUser();
+    const projectCount = getUserProjects(user.id).length;
 
     content.innerHTML = `
       <div class="eco-profile">
@@ -434,7 +431,7 @@ async function renderEcoAuth(mode) {
         <div class="eco-profile-grid">
           <div class="eco-profile-stat">
             <strong id="eco-profile-project-count">${projectCount}</strong>
-            <span>PROJECTS</span>
+              <span>PROJECTS</span>
           </div>
 
           <div class="eco-profile-stat">
@@ -448,24 +445,19 @@ async function renderEcoAuth(mode) {
           </div>
         </div>
 
-        <button class="eco-dashboard-btn" id="eco-dashboard-btn">
-          Open ECO Workspace →
-        </button>
-
-        <button class="eco-logout" id="eco-logout">
+        <button class="eco-dashboard-btn" id="eco-dashboard-btn">Open ECO Workspace →</button><button class="eco-logout" id="eco-logout">
           Log out of ECO ID
         </button>
       </div>
     `;
 
     document.querySelector("#eco-dashboard-btn").addEventListener("click", () => {
-      window.location.href = "/dashboard/";
-    });
-
-    document.querySelector("#eco-logout").addEventListener("click", async () => {
-      await logout();
-      await renderEcoAuth("login");
-      await updateEcoIdButton();
+  window.location.href = "/dashboard/";
+});
+document.querySelector("#eco-logout").addEventListener("click", () => {
+      logout();
+      renderEcoAuth("login");
+      updateEcoIdButton();
     });
 
     return;
@@ -526,7 +518,7 @@ async function renderEcoAuth(mode) {
           id="eco-password"
           type="password"
           autocomplete="${isSignup ? "new-password" : "current-password"}"
-          placeholder="Your password"
+          placeholder="Demo password"
           required
         />
       </div>
@@ -547,38 +539,34 @@ async function renderEcoAuth(mode) {
     renderEcoAuth("signup");
   });
 
-  document.querySelector("#eco-auth-form").addEventListener("submit", async (e) => {
+  document.querySelector("#eco-auth-form").addEventListener("submit", (e) => {
     e.preventDefault();
 
     const email = document.querySelector("#eco-email").value;
     const password = document.querySelector("#eco-password").value;
     const message = document.querySelector("#eco-auth-message");
 
-    message.textContent = "Connecting to ECO...";
-
     let result;
 
     if (isSignup) {
       const name = document.querySelector("#eco-name").value;
 
-      result = await signup(name, email, password);
+      result = signup(name, email, password);
 
       if (result.ok) {
         message.textContent = "ECO ID created.";
-
-        await updateEcoIdButton();
+        updateEcoIdButton();
 
         setTimeout(() => {
           renderEcoAuth("profile");
         }, 350);
       }
     } else {
-      result = await login(email, password);
+      result = login(email);
 
       if (result.ok) {
         message.textContent = "Login successful.";
-
-        await updateEcoIdButton();
+        updateEcoIdButton();
 
         setTimeout(() => {
           renderEcoAuth("profile");
@@ -592,18 +580,18 @@ async function renderEcoAuth(mode) {
   });
 }
 
-async function updateEcoIdButton() {
+function updateEcoIdButton() {
   const button = document.querySelector("#eco-id-trigger");
 
   if (!button) return;
 
-  const loggedIn = await isLoggedIn();
-  const user = await getUser();
+  const user = getUser();
+    const projectCount = getUserProjects(user.id).length;
 
-  if (loggedIn && user) {
+  if (isLoggedIn() && user) {
     button.innerHTML = `
       <span class="eco-id-dot"></span>
-      ${escapeHtml((user.name || "ECO").split(" ")[0])}
+      ${escapeHtml(user.name.split(" ")[0])}
     `;
   } else {
     button.innerHTML = `
@@ -634,11 +622,8 @@ if (navActions && !document.querySelector("#eco-id-trigger")) {
 
   navActions.prepend(ecoIdButton);
 
-  ecoIdButton.addEventListener("click", async () => {
-    const loggedIn = await isLoggedIn();
-    const user = await getUser();
-
-    openEcoAuth(loggedIn && user ? "profile" : "login");
+  ecoIdButton.addEventListener("click", () => {
+    openEcoAuth(isLoggedIn() ? "profile" : "login");
   });
 
   updateEcoIdButton();
@@ -893,10 +878,6 @@ window.addEventListener("keydown", (e) => {
     });
   }
 });
-
-
-
-
 
 
 
