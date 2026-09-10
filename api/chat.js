@@ -42,3 +42,4 @@ export default async function handler(req, res) {
       error: "ECO AI could not process your request."
     });
   }
+}
