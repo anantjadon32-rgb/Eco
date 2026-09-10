@@ -12,6 +12,7 @@
     "vite": "^8.2.2"
   },
   "dependencies": {
+    "@google/genai": "^2.21.0",
     "@supabase/supabase-js": "^2.116.0"
   }
 }

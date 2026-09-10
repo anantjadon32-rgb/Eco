@@ -10,7 +10,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: new URL("./index.html", import.meta.url).pathname,
-        dashboard: new URL("./dashboard/index.html", import.meta.url).pathname
+        dashboard: new URL("./dashboard/index.html", import.meta.url).pathname,
+        ai: new URL("./ai/index.html", import.meta.url).pathname
       }
     }
   }
