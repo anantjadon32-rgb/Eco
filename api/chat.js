@@ -32,11 +32,13 @@ export default async function handler(req, res) {
     return res.status(200).json({
       reply: response.text || "I couldn't generate a response."
     });
-  } catch (error) {
-    console.error("ECO AI Gemini Error:", error);
+    } catch (error) {
+    console.error(
+      "ECO AI Gemini Error:",
+      JSON.stringify(error, Object.getOwnPropertyNames(error), 2)
+    );
 
     return res.status(500).json({
       error: "ECO AI could not process your request."
     });
   }
-}
