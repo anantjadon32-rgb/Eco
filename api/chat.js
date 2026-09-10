@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
+      model: "gemini-3.7-flash",
       contents: prompt,
       config: {
         systemInstruction:
