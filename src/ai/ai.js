@@ -6,47 +6,59 @@ app.innerHTML = `
     <header class="ai-topbar">
       <div class="ai-brand">
         <div class="ai-logo">E</div>
-        <div>
+        <div class="ai-brand-text">
           <strong>ECO AI</strong>
           <span>Intelligence inside one ecosystem</span>
         </div>
       </div>
 
-      <div>
-        <a href="/" style="color:#9aa4af;text-decoration:none;font-size:13px;">
-          Back to ECO
-        </a>
-      </div>
+      <a class="back-link" href="/">
+        Back to ECO
+      </a>
     </header>
 
     <div class="ai-layout">
 
       <aside class="ai-sidebar">
+
         <button class="new-chat" id="new-chat">
-          + New Chat
+          <span>＋</span>
+          New Chat
         </button>
 
-        <div class="history-title">
-          Chat History
+        <div class="history-section">
+          <div class="history-title">Recent</div>
+
+          <div id="history-list" class="history-list">
+            <div class="history-empty">
+              No conversations yet
+            </div>
+          </div>
         </div>
 
-        <div class="history-empty">
-          Your conversations will appear here.
+        <div class="sidebar-bottom">
+          <div class="eco-status">
+            <span class="status-dot"></span>
+            ECO AI Online
+          </div>
         </div>
+
       </aside>
 
       <main class="ai-main">
-        <section class="ai-content">
 
-          <div class="ai-hero">
+        <section class="chat-shell">
 
-            <div class="ai-eyebrow">
+          <div id="welcome" class="welcome">
+
+            <div class="welcome-badge">
+              <span></span>
               ECO AI V1
             </div>
 
             <h1>
               Intelligence<br>
-              inside ECO.
+              <span>inside ECO.</span>
             </h1>
 
             <p>
@@ -59,49 +71,80 @@ app.innerHTML = `
 
               <button class="quick-action"
                 data-prompt="Explain this concept simply">
-                Explain something
+                <span class="quick-icon">✦</span>
+                <div>
+                  <strong>Explain something</strong>
+                  <small>Make complex ideas simple</small>
+                </div>
               </button>
 
               <button class="quick-action"
                 data-prompt="Help me write code">
-                Write code
+                <span class="quick-icon">&lt;/&gt;</span>
+                <div>
+                  <strong>Write code</strong>
+                  <small>Build and debug faster</small>
+                </div>
               </button>
 
               <button class="quick-action"
                 data-prompt="Help me brainstorm an idea">
-                Brainstorm
+                <span class="quick-icon">⌁</span>
+                <div>
+                  <strong>Brainstorm</strong>
+                  <small>Turn ideas into possibilities</small>
+                </div>
               </button>
 
               <button class="quick-action"
                 data-prompt="Help me study this topic">
-                Study
+                <span class="quick-icon">◇</span>
+                <div>
+                  <strong>Study</strong>
+                  <small>Learn with clear explanations</small>
+                </div>
               </button>
 
             </div>
 
-            <div id="response-area"></div>
+          </div>
 
-            <form class="composer" id="composer">
+          <div id="messages" class="messages"></div>
 
-              <input
-                id="prompt"
-                type="text"
-                placeholder="Ask ECO anything..."
-                autocomplete="off"
-              >
+          <div id="typing" class="typing hidden">
+            <div class="ai-avatar">E</div>
+            <div class="typing-bubble">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
 
-              <button
-                class="send-btn"
-                id="send-btn"
-                type="submit">
-                Send
-              </button>
+          <form class="composer" id="composer">
 
-            </form>
+            <input
+              id="prompt"
+              type="text"
+              placeholder="Ask ECO anything..."
+              autocomplete="off"
+            >
 
+            <button
+              class="send-btn"
+              id="send-btn"
+              type="submit"
+              aria-label="Send message">
+              <span>↑</span>
+            </button>
+
+          </form>
+
+          <div class="composer-note">
+            ECO AI can make mistakes. Check important information.
           </div>
 
         </section>
+
       </main>
 
     </div>
@@ -112,55 +155,105 @@ app.innerHTML = `
 const promptInput = document.querySelector("#prompt");
 const composer = document.querySelector("#composer");
 const sendButton = document.querySelector("#send-btn");
-const responseArea = document.querySelector("#response-area");
+const messages = document.querySelector("#messages");
+const welcome = document.querySelector("#welcome");
+const typing = document.querySelector("#typing");
+const newChatButton = document.querySelector("#new-chat");
+const historyList = document.querySelector("#history-list");
 
-function showResponse(text, type = "normal") {
-  responseArea.innerHTML = `
-    <div
-      style="
-        margin-top:24px;
-        padding:20px;
-        border:1px solid rgba(255,255,255,.10);
-        border-radius:16px;
-        background:rgba(255,255,255,.035);
-        color:#dce3e8;
-        line-height:1.7;
-        text-align:left;
-        white-space:pre-wrap;
-      "
-    >
-      ${text}
-    </div>
-  `;
+let conversations = [];
+
+function escapeHTML(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-document.querySelectorAll(".quick-action").forEach((button) => {
-  button.addEventListener("click", () => {
-    promptInput.value = button.dataset.prompt;
-    promptInput.focus();
+function addMessage(role, text) {
+  const message = document.createElement("div");
+
+  message.className = `message ${role}`;
+
+  const avatar = role === "assistant"
+    ? `<div class="message-avatar">E</div>`
+    : `<div class="message-avatar user-avatar">U</div>`;
+
+  message.innerHTML = `
+    ${avatar}
+    <div class="message-content">
+      <div class="message-name">
+        ${role === "assistant" ? "ECO AI" : "You"}
+      </div>
+      <div class="message-text">
+        ${escapeHTML(text)}
+      </div>
+    </div>
+  `;
+
+  messages.appendChild(message);
+
+  message.scrollIntoView({
+    behavior: "smooth",
+    block: "end"
   });
-});
+}
 
-document.querySelector("#new-chat").addEventListener("click", () => {
-  promptInput.value = "";
-  responseArea.innerHTML = "";
-  promptInput.focus();
-});
+function setTyping(show) {
+  typing.classList.toggle("hidden", !show);
+}
 
-composer.addEventListener("submit", async (event) => {
-  event.preventDefault();
+function startConversation(prompt) {
+  welcome.classList.add("hidden");
 
-  const prompt = promptInput.value.trim();
+  if (!conversations.length) {
+    conversations.push({
+      title: prompt.length > 32
+        ? `${prompt.slice(0, 32)}...`
+        : prompt
+    });
 
-  if (!prompt) {
-    promptInput.focus();
+    renderHistory();
+  }
+}
+
+function renderHistory() {
+  if (!conversations.length) {
+    historyList.innerHTML = `
+      <div class="history-empty">
+        No conversations yet
+      </div>
+    `;
     return;
   }
 
-  sendButton.disabled = true;
-  sendButton.textContent = "Thinking...";
+  historyList.innerHTML = conversations
+    .map(
+      (conversation) => `
+        <button class="history-item">
+          <span>◌</span>
+          ${escapeHTML(conversation.title)}
+        </button>
+      `
+    )
+    .join("");
+}
 
-  showResponse("ECO AI is thinking...");
+async function sendPrompt(prompt) {
+  if (!prompt || sendButton.disabled) return;
+
+  startConversation(prompt);
+
+  addMessage("user", prompt);
+
+  promptInput.value = "";
+
+  sendButton.disabled = true;
+  promptInput.disabled = true;
+
+  setTyping(true);
 
   try {
     const response = await fetch("/api/chat", {
@@ -176,21 +269,88 @@ composer.addEventListener("submit", async (event) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || "ECO AI request failed.");
+      throw new Error(
+        data.error || "ECO AI request failed."
+      );
     }
 
-    showResponse(data.reply || "ECO AI returned an empty response.");
+    setTyping(false);
 
-    promptInput.value = "";
+    addMessage(
+      "assistant",
+      data.reply || "ECO AI returned an empty response."
+    );
 
   } catch (error) {
+
     console.error("ECO AI Error:", error);
 
-    showResponse(
+    setTyping(false);
+
+    addMessage(
+      "assistant",
       "ECO AI couldn't process your request right now. Please try again."
     );
+
   } finally {
+
     sendButton.disabled = false;
-    sendButton.textContent = "Send";
+    promptInput.disabled = false;
+    promptInput.focus();
+
   }
+}
+
+document.querySelectorAll(".quick-action").forEach((button) => {
+
+  button.addEventListener("click", () => {
+
+    promptInput.value = button.dataset.prompt;
+
+    promptInput.focus();
+
+  });
+
 });
+
+composer.addEventListener("submit", (event) => {
+
+  event.preventDefault();
+
+  const prompt = promptInput.value.trim();
+
+  sendPrompt(prompt);
+
+});
+
+newChatButton.addEventListener("click", () => {
+
+  messages.innerHTML = "";
+
+  welcome.classList.remove("hidden");
+
+  setTyping(false);
+
+  promptInput.value = "";
+
+  promptInput.disabled = false;
+
+  sendButton.disabled = false;
+
+  promptInput.focus();
+
+});
+
+promptInput.addEventListener("keydown", (event) => {
+
+  if (event.key === "Enter" && !event.shiftKey) {
+
+    event.preventDefault();
+
+    composer.requestSubmit();
+
+  }
+
+});
+
+renderHistory();
