@@ -1,31 +1,104 @@
-﻿import { supabase } from "./supabase.js";
+﻿const API_BASE = "http://localhost:3000/api";
 
-export async function getUser() {
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
+const TOKEN_KEY = "eco_local_token";
+const USER_KEY = "eco_local_user";
 
-  if (error || !user) return null;
+function saveAuth(data) {
+  if (data?.token) {
+    localStorage.setItem(TOKEN_KEY, data.token);
+  }
+
+  if (data?.user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  }
+}
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function clearAuth() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+function normalizeUser(user) {
+  if (!user) return null;
 
   return {
     id: user.id,
-    name:
-      user.user_metadata?.name ||
-      user.user_metadata?.full_name ||
-      user.email?.split("@")[0] ||
-      "ECO User",
+    name: user.name || user.email?.split("@")[0] || "ECO User",
     email: user.email || "",
-    createdAt: user.created_at
+    createdAt: user.createdAt || user.created_at || ""
   };
 }
 
-export async function isLoggedIn() {
-  const {
-    data: { session }
-  } = await supabase.auth.getSession();
+async function apiRequest(path, options = {}) {
+  const headers = {
+    ...(options.headers || {})
+  };
 
-  return !!session;
+  if (options.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const token = getToken();
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers
+  });
+
+  let data = {};
+
+  try {
+    data = await response.json();
+  } catch {
+    data = {
+      ok: false,
+      message: "Invalid server response."
+    };
+  }
+
+  return {
+    response,
+    data
+  };
+}
+
+export async function getUser() {
+  const token = getToken();
+
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const { response, data } = await apiRequest("/auth/me");
+
+    if (!response.ok || !data.ok || !data.user) {
+      clearAuth();
+      return null;
+    }
+
+    const user = normalizeUser(data.user);
+
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+    return user;
+  } catch (error) {
+    console.error("ECO Auth /me Error:", error);
+    return null;
+  }
+}
+
+export async function isLoggedIn() {
+  const user = await getUser();
+  return !!user;
 }
 
 export async function signup(name, email, password) {
@@ -36,42 +109,42 @@ export async function signup(name, email, password) {
     };
   }
 
-  const {
-    data,
-    error
-  } = await supabase.auth.signUp({
-    email: email.trim().toLowerCase(),
-    password,
-    options: {
-      data: {
-        name: name.trim()
-      }
-    }
-  });
+  try {
+    const { response, data } = await apiRequest("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password
+      })
+    });
 
-  if (error) {
+    if (!response.ok || !data.ok) {
+      return {
+        ok: false,
+        message: data.message || "Account could not be created."
+      };
+    }
+
+    const user = normalizeUser(data.user);
+
+    saveAuth({
+      token: data.token,
+      user
+    });
+
+    return {
+      ok: true,
+      user
+    };
+  } catch (error) {
+    console.error("ECO Signup Error:", error);
+
     return {
       ok: false,
-      message: error.message
+      message: "Unable to connect to ECO Backend."
     };
   }
-
-  if (!data.user) {
-    return {
-      ok: false,
-      message: "Account could not be created."
-    };
-  }
-
-  return {
-    ok: true,
-    user: {
-      id: data.user.id,
-      name: name.trim(),
-      email: data.user.email || email.trim().toLowerCase(),
-      createdAt: data.user.created_at
-    }
-  };
 }
 
 export async function login(email, password) {
@@ -82,67 +155,95 @@ export async function login(email, password) {
     };
   }
 
-  const {
-    data,
-    error
-  } = await supabase.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
-    password
-  });
+  try {
+    const { response, data } = await apiRequest("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password
+      })
+    });
 
-  if (error) {
-    return {
-      ok: false,
-      message: error.message
-    };
-  }
-
-  if (!data.user) {
-    return {
-      ok: false,
-      message: "Login failed."
-    };
-  }
-
-  return {
-    ok: true,
-    user: {
-      id: data.user.id,
-      name:
-        data.user.user_metadata?.name ||
-        data.user.email?.split("@")[0] ||
-        "ECO User",
-      email: data.user.email || "",
-      createdAt: data.user.created_at
+    if (!response.ok || !data.ok) {
+      return {
+        ok: false,
+        message: data.message || "Login failed."
+      };
     }
-  };
+
+    const user = normalizeUser(data.user);
+
+    saveAuth({
+      token: data.token,
+      user
+    });
+
+    return {
+      ok: true,
+      user
+    };
+  } catch (error) {
+    console.error("ECO Login Error:", error);
+
+    return {
+      ok: false,
+      message: "Unable to connect to ECO Backend."
+    };
+  }
 }
 
 export async function logout() {
-  const { error } = await supabase.auth.signOut();
+  const token = getToken();
 
-  return {
-    ok: !error,
-    message: error?.message || ""
-  };
+  if (!token) {
+    clearAuth();
+
+    return {
+      ok: true,
+      message: "Logged out successfully."
+    };
+  }
+
+  try {
+    const { response, data } = await apiRequest("/auth/logout", {
+      method: "POST"
+    });
+
+    clearAuth();
+
+    return {
+      ok: response.ok && data.ok,
+      message: data.message || ""
+    };
+  } catch (error) {
+    console.error("ECO Logout Error:", error);
+
+    clearAuth();
+
+    return {
+      ok: true,
+      message: "Logged out locally."
+    };
+  }
 }
 
 export async function updateUser(updates) {
-  const { data, error } = await supabase.auth.updateUser({
-    data: updates
-  });
+  const currentUser = await getUser();
 
-  if (error || !data.user) {
+  if (!currentUser) {
     return null;
   }
 
-  return {
-    id: data.user.id,
-    name:
-      data.user.user_metadata?.name ||
-      data.user.email?.split("@")[0] ||
-      "ECO User",
-    email: data.user.email || "",
-    createdAt: data.user.created_at
+  const updatedUser = {
+    ...currentUser,
+    ...updates
   };
+
+  localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+
+  return updatedUser;
+}
+
+export function getAuthToken() {
+  return getToken();
 }

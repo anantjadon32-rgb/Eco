@@ -1,18 +1,57 @@
-﻿import { supabase } from "./supabase.js";
+﻿const API_BASE = "http://localhost:3000/api";
+
+function getToken() {
+  return localStorage.getItem("eco_local_token");
+}
+
+async function apiRequest(path, options = {}) {
+  const token = getToken();
+
+  const headers = {
+    ...(options.headers || {}),
+    "Content-Type": "application/json"
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers
+  });
+
+  let data = {};
+
+  try {
+    data = await response.json();
+  } catch {
+    data = {
+      ok: false,
+      message: "Invalid server response."
+    };
+  }
+
+  return {
+    response,
+    data
+  };
+}
 
 export async function getUserProjects(userId) {
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+  try {
+    const { response, data } = await apiRequest("/projects");
 
-  if (error) {
+    if (!response.ok || !data.ok) {
+      console.error("ECO Projects Error:", data.message);
+      return [];
+    }
+
+    return data.projects || [];
+  } catch (error) {
     console.error("ECO Projects Error:", error);
     return [];
   }
-
-  return data || [];
 }
 
 export async function createProject(userId, name, description = "") {
@@ -25,48 +64,61 @@ export async function createProject(userId, name, description = "") {
     };
   }
 
-  const { data, error } = await supabase
-    .from("projects")
-    .insert({
-      user_id: userId,
-      name: cleanName,
-      description: description.trim()
-    })
-    .select()
-    .single();
+  try {
+    const { response, data } = await apiRequest("/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        name: cleanName,
+        description: description.trim()
+      })
+    });
 
-  if (error) {
+    if (!response.ok || !data.ok) {
+      return {
+        ok: false,
+        message: data.message || "Could not create project."
+      };
+    }
+
+    return {
+      ok: true,
+      project: data.project
+    };
+  } catch (error) {
     console.error("ECO Create Project Error:", error);
 
     return {
       ok: false,
-      message: error.message
+      message: "Unable to connect to ECO Backend."
     };
   }
-
-  return {
-    ok: true,
-    project: data
-  };
 }
 
 export async function deleteProject(userId, projectId) {
-  const { error } = await supabase
-    .from("projects")
-    .delete()
-    .eq("id", projectId)
-    .eq("user_id", userId);
+  try {
+    const { response, data } = await apiRequest(
+      `/projects/${encodeURIComponent(projectId)}`,
+      {
+        method: "DELETE"
+      }
+    );
 
-  if (error) {
+    if (!response.ok || !data.ok) {
+      return {
+        ok: false,
+        message: data.message || "Could not delete project."
+      };
+    }
+
+    return {
+      ok: true
+    };
+  } catch (error) {
     console.error("ECO Delete Project Error:", error);
 
     return {
       ok: false,
-      message: error.message
+      message: "Unable to connect to ECO Backend."
     };
   }
-
-  return {
-    ok: true
-  };
 }

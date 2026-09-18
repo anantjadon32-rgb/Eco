@@ -1,5 +1,4 @@
 ﻿import { getUser, isLoggedIn, logout } from "../services/auth.js";
-import { getFiles, uploadFile, deleteFile, getFileDownloadUrl } from "../services/files.js";
 import { getUserProjects, createProject, deleteProject } from "../services/projects.js";
 
 
@@ -284,44 +283,25 @@ function loadPage(page) {
     `,
 
     cloud: `
-  <section class="eco-panel eco-page-panel">
-    <div class="eco-cloud-header">
-      <div>
+      <section class="eco-panel eco-page-panel">
         <span>ECO CLOUD</span>
-        <h2>My Files</h2>
-        <p>Private cloud storage powered by your ECO NAS.</p>
-      </div>
+        <h2>Cloud workspace</h2>
+        <p>
+          Deploy applications, manage projects and use ECO infrastructure.
+        </p>
 
-      <button class="eco-primary-action" id="cloudUploadBtn">
-        + Upload File
-      </button>
-    </div>
+        <div class="eco-feature-list">
+          <div>☁ Storage</div>
+          <div>⚡ Deployments</div>
+          <div>◈ Projects</div>
+          <div>▣ Environments</div>
+        </div>
 
-    <input id="cloudFileInput" type="file" hidden>
-
-    <div id="cloudMessage"></div>
-
-    <div class="eco-cloud-storage">
-      <div>
-        <span>STORAGE</span>
-        <strong id="cloudStorageUsed">0 B</strong>
-      </div>
-
-      <div>
-        <span>FILES</span>
-        <strong id="cloudFileCount">0</strong>
-      </div>
-    </div>
-
-    <div id="cloudFilesContainer">
-      <div class="eco-empty-state">
-        <div class="eco-empty-icon">☁</div>
-        <h4>Loading your files...</h4>
-        <p>Connecting to ECO Cloud.</p>
-      </div>
-    </div>
-  </section>
-`,
+        <button class="eco-primary-action">
+          Open Cloud →
+        </button>
+      </section>
+    `,
 
     developers: `
       <section class="eco-panel eco-page-panel">
@@ -373,9 +353,6 @@ function loadPage(page) {
       renderProjects();
     }
 
-if (page === "cloud") {
-  renderCloud();
-}
   document
     .querySelectorAll("[data-page]")
     .forEach(button => {
@@ -405,173 +382,64 @@ function escapeHtml(value = "") {
     .replace(/'/g, "&#039;");
 }
 
-async function renderCloud() {
-  const container = document.querySelector("#cloudFilesContainer");
-  const uploadButton = document.querySelector("#cloudUploadBtn");
-  const fileInput = document.querySelector("#cloudFileInput");
-  const message = document.querySelector("#cloudMessage");
+async function renderProjects() {
+  const container = document.querySelector("#projectsContainer");
+  if (!container) return;
 
-  if (!container || !uploadButton || !fileInput) return;
+  const projects = await getUserProjects(user.id);
 
-  const formatSize = bytes => {
-    if (!bytes) return "0 B";
-
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let size = Number(bytes);
-    let unit = 0;
-
-    while (size >= 1024 && unit < units.length - 1) {
-      size /= 1024;
-      unit++;
-    }
-
-    return `${size.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
-  };
-
-  const loadFiles = async () => {
+  if (!projects.length) {
     container.innerHTML = `
       <div class="eco-empty-state">
-        <div class="eco-empty-icon">☁</div>
-        <h4>Loading files...</h4>
+        <div class="eco-empty-icon">+</div>
+        <h4>No projects yet</h4>
+        <p>Create your first ECO project to get started.</p>
       </div>
     `;
+    return;
+  }
 
-    const result = await getFiles();
+  container.innerHTML = `
+    <div class="eco-project-grid">
+      ${projects.map(project => `
+        <article class="eco-project-card">
 
-    if (!result.ok) {
-      container.innerHTML = `
-        <div class="eco-empty-state">
-          <div class="eco-empty-icon">!</div>
-          <h4>Could not load files</h4>
-          <p>${escapeHtml(result.message || "Backend connection failed.")}</p>
-        </div>
-      `;
-      return;
-    }
+          <div class="eco-project-top">
+            <div class="eco-project-icon">E</div>
+            <span class="eco-project-status">ACTIVE</span>
+          </div>
 
-    const files = result.files || [];
+          <h3>${escapeHtml(project.name)}</h3>
 
-    document.querySelector("#cloudFileCount").textContent = files.length;
+          <p>
+            ${escapeHtml(project.description || "No description added.")}
+          </p>
 
-    const totalBytes = files.reduce(
-      (total, file) => total + Number(file.size_bytes || 0),
-      0
-    );
+          <div class="eco-project-meta">
+            Created ${new Date(project.createdAt).toLocaleDateString()}
+          </div>
 
-    document.querySelector("#cloudStorageUsed").textContent =
-      formatSize(totalBytes);
+          <div class="eco-project-actions">
 
-    if (!files.length) {
-      container.innerHTML = `
-        <div class="eco-empty-state">
-          <div class="eco-empty-icon">☁</div>
-          <h4>No files yet</h4>
-          <p>Upload your first file to ECO Cloud.</p>
-        </div>
-      `;
-      return;
-    }
+            <button
+              class="eco-secondary-action open-project-btn"
+              data-project-id="${project.id}">
+              Open
+            </button>
 
-    container.innerHTML = `
-      <div class="eco-file-list">
-        ${files.map(file => `
-          <article class="eco-file-card">
+            <button
+              class="eco-danger-action delete-project-btn"
+              data-project-id="${project.id}">
+              Delete
+            </button>
 
-            <div class="eco-file-icon">📄</div>
+          </div>
 
-            <div class="eco-file-info">
-              <strong>${escapeHtml(file.original_name)}</strong>
-              <small>
-                ${formatSize(file.size_bytes)}
-                • ${new Date(file.created_at).toLocaleDateString()}
-              </small>
-            </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
 
-            <div class="eco-file-actions">
-              <button
-                class="eco-secondary-action cloud-download-btn"
-                data-file-id="${file.id}">
-                Download
-              </button>
-
-              <button
-                class="eco-danger-action cloud-delete-btn"
-                data-file-id="${file.id}">
-                Delete
-              </button>
-            </div>
-
-          </article>
-        `).join("")}
-      </div>
-    `;
-
-    document.querySelectorAll(".cloud-download-btn").forEach(button => {
-      button.addEventListener("click", () => {
-        const fileId = button.dataset.fileId;
-        const download = getFileDownloadUrl(fileId);
-
-        const link = document.createElement("a");
-        link.href = download.url;
-
-        if (download.token) {
-          link.setAttribute(
-            "data-token",
-            download.token
-          );
-        }
-
-        link.target = "_blank";
-        link.click();
-      });
-    });
-
-    document.querySelectorAll(".cloud-delete-btn").forEach(button => {
-      button.addEventListener("click", async () => {
-        const fileId = button.dataset.fileId;
-
-        if (!confirm("Delete this file?")) return;
-
-        const result = await deleteFile(fileId);
-
-        if (!result.ok) {
-          alert(result.message || "Could not delete file.");
-          return;
-        }
-
-        await loadFiles();
-      });
-    });
-  };
-
-  uploadButton.addEventListener("click", () => {
-    fileInput.click();
-  });
-
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files?.[0];
-
-    if (!file) return;
-
-    message.textContent = "Uploading...";
-
-    const result = await uploadFile(file);
-
-    if (!result.ok) {
-      message.textContent =
-        result.message || "Upload failed.";
-      return;
-    }
-
-    message.textContent = "Upload successful.";
-
-    fileInput.value = "";
-
-    await loadFiles();
-  });
-
-  await loadFiles();
-}
   document.querySelectorAll(".delete-project-btn").forEach(button => {
     button.addEventListener("click", async () => {
 
@@ -609,6 +477,7 @@ async function renderCloud() {
       );
     });
   });
+}
 
 async function openCreateProjectModal() {
 
@@ -752,8 +621,6 @@ document.addEventListener("click", event => {
 
 
 initDashboard();
-
-
 
 
 
